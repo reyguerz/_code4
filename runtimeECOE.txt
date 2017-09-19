@@ -1,0 +1,6 @@
+runtime: 0:00:47.526684
+TotalCost (USD): 4766755.0
+TotalDemandServed (W): 2382035605.6256905
+ECOE: 2.001126678687036
+# of Batteries Used: 1
+No Run Time Error
