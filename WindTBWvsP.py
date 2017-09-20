@@ -1,11 +1,16 @@
 __author__ = 'Rey Guerrero'
 
+
+
 # Python Code for Wind Speed versus Power Out Look Up Table
 
 MinWindSpeed = 0 #lowest windspeed
 MaxWindSpeed = 25 #cut off wind speed
-WindTBPowerRating = 1000 # to be deleted, just for generating sample LUT
+WindTBPowerRating = 1000 # Watts
 RatedWindSpeed = 13 # to be deleted, just for generating sample LUT
+
+
+
 LUTPout = []
 LUTWindSpeed = []
 

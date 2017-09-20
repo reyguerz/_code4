@@ -1,6 +1,9 @@
 # Python Code for Inverter Load versus PowerIn Look Up Table
+
+import VarList
+
 MinPower = 0 
-RatedPower = 28000 #7000 #MaxPower
+RatedPower = VarList.InvRatedPower #7000 #MaxPower where the LUT was based
 
 LUTPin= []
 LUTPout = []

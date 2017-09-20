@@ -29,22 +29,22 @@ Change Temp. Repeat Perturb. Until Temp = Min Temp. # Min Temp is the "resolutio
 '''
 
 # initialization
+import copy
 import math
 import csv
-import ObjectiveFunction
-import MicrogridModel
 import random
-import AdminFunctions
 
-from datetime import datetime
-starttime = datetime.now()
+import ObjectiveFunction
+
+import MicrogridModel	# may be deleted?
+import AdminFunctions	# may be deleted?
 
 
 TabuList = []
 TabuListandResults = []
 
 
-#****** FUNCTION DEFINITIONS
+#****** FUNCTION DEFINITIONS FOR SIMULATED ANNEALING
 
 def SolFinder(Sizes): 
 		# Checks if Sizes or Solution were already solved before and are in the Tabu List 
@@ -82,7 +82,18 @@ def newTempGeometric(Temp):
 # ********* END FUNCTION DEFINITIONS
 
 
+def SAOptimize(Scenarios, PDFResults, DesignResult):
 
+	Sizes = [550,540,840]
+	
+	Metric2Min = ObjectiveFunction.Eval(Scenarios, Sizes, PDFResults)
+	
+	DesignResult.append(Sizes)
+	DesignResult.append(Metric2Min)
+
+
+
+'''
 
 # ***** SIMULATED ANNEALING
 
@@ -183,11 +194,6 @@ AdminFunctions.WriteListCSVFile('SATabuList.csv',TabuListandResults)
 
 #******** EXIT
 
-stoptime = datetime.now()
-
-print ('runtime: ',stoptime - starttime)
-print('\nDone! Good luck! \nPress Enter to Exit Program')
-ExitEnter = input()
-
+'''
 
 

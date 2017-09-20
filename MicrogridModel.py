@@ -2,108 +2,64 @@ __author__ = 'Rey Guerrero'
 
 #***** Microgrid Model
 
+# import python modules
 import sys
 import os
 import math
 import copy
 from collections import deque
+
+# import user defined modules
+import VarList
 import Component
 import InverterEff # delete, not needed here
 import AdminFunctions # may not be needed here if no more debugging and scenario generation is on a different module
-#import numba
 
-
-from datetime import datetime
-starttime = datetime.now()
-rowError = 'No Run Time Error'
 
 #Constraints and Penalty Values
-LoadMetFractionLimit = 0.99
-BatSOCRequiredMin = 0.95
-ECOEPenalty1 = 10000001 # Load Met Fraction one month
-ECOEPenalty2 = 10000002 # Load Met Fraction one year
-ECOEPenalty3 = 10000003 # BatSOC Required Min one year
-
-#************************ START: input variables and parameters
-'''
-TimeSteps = 4
-Irradiance = [100,1000,1000,100]
-WindSpeed = [0,10,0,15]
-Temp = [303, 303,303,313,313]		# Kelvin, has one more data point at the start to indicate time = 0 temperature. this is to be used in the battery degradation comp
-Demand = [505,700,100,700]
-'''
-Irradiance = []
-WindSpeed = []
-Temp = []
-Demand = []
-TimeSteps = 0
-
-'''
-AdminFunctions.ReadListCSVFile('inSolar.csv', Irradiance)
-AdminFunctions.ReadListCSVFile('inWindSpeed.csv', WindSpeed)
-AdminFunctions.ReadListCSVFile('inTemp.csv', Temp)
-AdminFunctions.ReadListCSVFile('inLoad.csv', Demand)
-'''
-# code for simple 20 yr simulation by repeating 1 year data 20x
-Dummy = []
-AdminFunctions.ReadListCSVFile('inSolar.csv', Dummy)
-for i in range(20):
-	Irradiance += Dummy
-
-Dummy = []
-AdminFunctions.ReadListCSVFile('inWindSpeed.csv', Dummy)
-for i in range(20):
-	WindSpeed += Dummy
-
-Dummy = []
-AdminFunctions.ReadListCSVFile('inTemp.csv', Dummy)
-Temp += Dummy
-Dummy.pop(0)
-for i in range(19):
-	Temp += Dummy
-	
-Dummy = []
-AdminFunctions.ReadListCSVFile('inLoad.csv', Dummy)
-for i in range(20):
-	Demand += Dummy
-'''
-print('Irradiance len: ', len(Irradiance))
-print('Windspeed Len: ', len(WindSpeed))
-print('Demand len: ',len(Demand))
-print('Temp lenL ',len(Temp))
-'''
-
-if (len(Irradiance) == len(WindSpeed)) & (len(WindSpeed) == len(Demand)) & (len(Demand) == len(Temp) - 1):
-	TimeSteps = len(Irradiance)
-else:
-	print('ERROR in input data. duration mismatch')
-	rowError = 'ERROR in input data. duration mismatch'
-
-
-PVSize = 30	# check components for unit size
-WTSize = 40	 # check components and WT LUT code for unit size
-BatSize = 300 # check components and code below for unit size
-#!! IMPORTANT: CHECK INVERTER EFF CODE AND SPECS
-
+LoadMetFractionLimit = VarList.LoadMetFractionLimit
+BatSOCRequiredMin = VarList.BatSOCRequiredMin
+ECOEPenalty1 = VarList.ECOEPenalty1 # Load Met Fraction one month
+ECOEPenalty2 = VarList.ECOEPenalty2 # Load Met Fraction one year
+ECOEPenalty3 = VarList.ECOEPenalty3 # BatSOC Required Min one year
 
 # need to check and be consistent with the ratings in the Component.py
-PVunitcost = 2420			#USD / kWp
-PVAnnualPercent = 0.02125	# annual O&M as percent of initial investment
-WTunitcost = 2500			# USD / kW
-WTAnnualPercent = 0.02 		# annual O&M as percent of initial investment
-Batunitcost = 830			# USD / kWh
-BatAnnualcost = 0.02		# annual O&M as percent of initial investment
-Inverterunitcost =  500		#USD/kWh
-
-#************************ END:  input variables and parameters
+PVunitcost = VarList.PVunitcost				#USD / kWp
+PVAnnualPercent = VarList.PVAnnualPercent		# annual O&M as percent of initial investment
+WTunitcost = VarList.WTunitcost					# USD / kW
+WTAnnualPercent = VarList.WTAnnualPercent 		# annual O&M as percent of initial investment
+Batunitcost = VarList.Batunitcost				# USD / kWh
+BatAnnualcost = VarList.BatAnnualcost			# annual O&M as percent of initial investment
+Inverterunitcost =  VarList.Inverterunitcost	#USD/kWh
 
 
 # ****************FUNCTION DEFINITION: ACTUAL SIMULATION
 
-#@numba.jit#(nopython = True)
-def Simulation():
 
-	#Initialization for the loop / project life simulation
+def Simulation(OneScenario,Sizes,metrics):
+
+	#Meteorological and Load Data.
+	Irradiance = OneScenario[0]
+	WindSpeed = OneScenario[1]
+	Temp = OneScenario[2]
+	Demand = OneScenario[3]
+
+	# error checking for the scenarios...
+	TimeSteps = 0
+	if (len(Irradiance) == len(WindSpeed)) & (len(WindSpeed) == len(Demand)) & (len(Demand) == len(Temp) - 1):
+		TimeSteps = len(Irradiance)
+	else:
+		print('ERROR in input data. duration mismatch')
+		rowError = 'ERROR in input data. duration mismatch'
+
+	# Design Sizes
+	PVSize = Sizes[0]	# check components for unit size
+	WTSize = Sizes[1]	# check components and WT LUT code for unit size
+	BatSize = Sizes[2] 	# check components and code below for unit size
+	#!! IMPORTANT: CHECK INVERTER EFF CODE AND SPECS
+
+
+	# Other variables to initialize for the loop / project life simulation
 	DeltaDemandServed = []
 	PExcess = []
 	BatSOC = 0
@@ -116,13 +72,13 @@ def Simulation():
 	BatChargeRemainingCap = BatChargeRated
 	BatMaxSOCcriteria = 1
 	BatChargeStatMaxSOC = BatMaxSOCcriteria * BatChargeRated # Wh
-	BatChargeStatMinSOC = 0.2 * BatSize *1000 # Wh
+	BatChargeStatMinSOC = VarList.BATminSOC * BatSize *1000 # Wh
 	BatChargeStat =  BatSize * 1000 # Wh, start at full charge
 	BatSOH = 1 
 	BatStartTime = -2	# code dependent value. variable needed to restart cycle and SOC count when battery is replaced
-	minBatSOH = 0.8		#criteria when to change the battery
-	BatChEff = 0.90
-	BatDisChEff = 0.90
+	minBatSOH = VarList.minBatSOH		#criteria when to change the battery
+	BatChEff = VarList.BatChEff
+	BatDisChEff = VarList.BatDisChEff
 	minBatSOC = 1 # initial value
 
 	#Battery parameters for degradation computation
@@ -139,26 +95,14 @@ def Simulation():
 
 	CumDegCycFix = 0
 
-	#**Testing Purposes Only
-	'''
-	SolarPVOutEveryTimeStep = []
-	WintTBOutEveryTimeStep = []
-	'''
-	
-	'''
-	#output to CSV
-	OutFileName = 'output.csv'
-	outfile = open(OutFileName,'w')
-
-
-	row = 'hour, PVGen, WTGen, PGen, BatChargeStat,BatRemCap, Bat SOH, PToInverter, DeltaDemand, PExcess\n'
-	outfile.write(row)
-	'''
-	
-	
 	TotalDemandServed = 0
 	TotalRequiredLoad = 0
 	SimulationBreak = 0
+
+
+	
+
+
 
 	for i in range (TimeSteps): # for i in range (1,TimeSteps + 1): # i = 0 is initial value
 
@@ -188,18 +132,18 @@ def Simulation():
 			if ForBatCharging <= BatChargeStatMaxSOC - BatChargeStat:
 				BatChargeStat += ForBatCharging	# update battery charge state	
 				PExcess.append(0)									#!!! CAN STILL BE OPTIMIZED !!!#
-				#print('\nCase 1')		
+						
 			else: # ForBatCharging > BatChargeStatMaxSOC - BatChargeStat
 				PExcess.append(ForBatCharging - (BatChargeStatMaxSOC - BatChargeStat))
 				BatChargeStat = BatChargeStatMaxSOC # update battery charge state
-				#print('\nCase 2')
+				
 		else: # Generated power is less than demand
 			ForBatDischarging = (PToInverter - PGen) / BatDisChEff
 			PExcess.append(0) 
 			if ForBatDischarging <= BatChargeStat - BatChargeStatMinSOC: # check battery capacity
 				DeltaDemandServed.append(0) # Load Served = Demand, battery can supply the energy deficit
 				BatChargeStat -= ForBatDischarging  # reduce battery charge
-				#print('\nCase 3')
+				
 			else: # not enough battery charge to supply demand
 				#Update ActualLoad because of load effects on inverter
 				#Updated Actual load served can only go down further because there is not enough generation and battery charge
@@ -208,7 +152,7 @@ def Simulation():
 				DeltaDemandServed.append(ActualLoadServed - Demand[i]) 
 				# load served is lower than demand
 				BatChargeStat = BatChargeStatMinSOC # update battery charge state
-				#print('\nCase 4')
+				
 
 		
 
@@ -246,9 +190,7 @@ def Simulation():
 				RainFlowBuffer.append([0, PrevBatSOC, Temp[0]]) # first entry to Rain Flow BUffer
 				PrevRFB = copy.deepcopy(RainFlowBuffer)
 
-		#print('RFB lenght:',len(RainFlowBuffer))
-		
-		#print('\n***RFB0',RainFlowBuffer[0])
+
 
 		RainFlowBuffer = copy.deepcopy(PrevRFB) # revert back to RFB, last PeakValley
 		DegCycFix = 0
@@ -317,20 +259,8 @@ def Simulation():
 		if BatChargeStat > BatChargeRemainingCap:
 			BatChargeStat = BatChargeRemainingCap	# actual charge lost because of degradation when battery is fully charged
 
-
-		'''
-		print('\n Battery Charge State:', BatChargeStat)
-		print('\n Battery Charge Max SOC:', BatChargeStatMaxSOC)
-		print('\n Battery Charge Min SOC:', BatChargeStatMinSOC)
-		print('\n Battery SOH:', BatSOH)
-		print('\n DeltaDemandServed',DeltaDemandServed)
-		print('\n ExcessPower:', PExcess)
-		print('\n Generated Power', PGen)
-		print('\n Required Power to Inverter', PToInverter)
-		print('\n Irradiance', Component.PVIrradiance)
-		'''
 		
-		#*** Compute Demand Served and Reliabiility Metric
+		#*** Compute Demand Served and Reliability Metric
 		TotalRequiredLoad += Demand[i]
 		TotalDemandServed += Demand[i] + DeltaDemandServed[i]
 		
@@ -356,24 +286,7 @@ def Simulation():
 				SimulationBreak = 1
 				break
 		
-
-
-		'''
-		row = ''
-		row += str(i+1) + ','
-		row += str(PSolar) + ','
-		row += str(Pwind) + ','
-		row += str(PGen) + ','
-		row += str(BatChargeStat) + ','
-		row += str(BatChargeRemainingCap) + ','
-		row += str(BatSOH) + ','
-		row += str(PToInverter) + ','
-		row += str(DeltaDemandServed[i]) + ','
-		row += str(PExcess[i]) + '\n'
-		outfile.write(row)
-		'''
-		#print('Finished computation at Timestep = ',i)#, ':', BatSOC,BatSOH)
-		
+	
 
 	#*** Cost model
 	#PV
@@ -387,10 +300,10 @@ def Simulation():
 	CostWT = InitInv + Annual
 
 	# Inverter Costing
-	InvBufferSize = 1.50	#higher than the max Deman
+	InvBufferSize = VarList.InvBufferSize	#higher than the max Deman
 	InvSize = math.ceil((InvBufferSize*max(Demand)) / Component.InvRatedPower)
 	InitInv = InvSize * Inverterunitcost
-	YearstoReplace = 5
+	YearstoReplace = VarList.YearstoReplace
 	Replacements = math.ceil(TimeSteps / (24*365*YearstoReplace))
 	CostInv = InitInv * Replacements
 
@@ -404,47 +317,11 @@ def Simulation():
 	if SimulationBreak == 0:
 		ECOE = (TotalCost / (TotalDemandServed/1000)) 	# in USD/kWh
 	
-	'''
-	# print checkers
-	print('PV Init: ', InitInv)
-	print('PV O&M: ', Annual)
-	print('PV Cost: ', CostPV)
-
-	print('WT Init: ', InitInv)
-	print('WT O&M: ', Annual)
-	print('WT Cost: ', CostWT)
-
-	print('Inverter Init: ', InitInv)
-	print('Inverter Replacements: ', Replacements)
-	print('Inverter Cost: ', CostInv)
-
-	print('Bat Init: ', InitInv)
-	print('Bat O&M: ', Annual)
-	print('Battery Cost: ', CostBat)
-
-	print('Total Cost: ',TotalCost)
-	print('ECOE: ',ECOE)
-
-	print('\n# of Batteries Used: ' + str(BatteryReplacement))
-
-	outfile.close()
-	'''
-
 	
-	stoptime = datetime.now()
+	metrics.append(ECOE)
+	metrics.append(TotalCost)
+	metrics.append(TotalDemandServed)
 
-	print ('runtime: ',stoptime - starttime)
-	outfile2 = open('runtimeECOE.txt','w')
-	row = 'runtime: ' + str(stoptime - starttime)
-	row += '\nTotalCost (USD): ' + str(TotalCost)
-	row += '\nTotalDemandServed (W): ' + str(TotalDemandServed)
-	row += '\nECOE: ' + str(ECOE)
-	row += '\n# of Batteries Used: ' + str(BatteryReplacement)
-	row += '\n' + rowError
-	outfile2.write(row)
-	outfile2.close()
-	
-	return ECOE
 
 #************************ END:  FUNCTION DEFINITION/SIMULATION
 
