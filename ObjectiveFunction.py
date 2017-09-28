@@ -7,7 +7,7 @@ def Eval(Scenarios, Sizes, PDFResults):
 
 	Metric2Min = 0													# initialize to zero
 	PDFResultFixedSize = []											# initialize to empty list
-	MonteCarlo.SimScenarios(Scenarios, Sizes, PDFResultFixedSize)	# Monte Carlo Simulation: different Scenarios, one set of Sizes
+	PDFResultFixedSize = MonteCarlo.SimScenarios(Scenarios, Sizes)	# Monte Carlo Simulation: different Scenarios, one set of Sizes
 
 	PDFCriteria = VarList.PDFCriteria								# mean, P90, P10, or standard deviation, etc
 	ObjectiveMetric = VarList.ObjectiveMetric 						# which column/ metric to optimize

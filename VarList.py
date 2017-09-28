@@ -10,6 +10,8 @@ Scenarios		Scenario Gen				Microgrid Model
 Sizes			Optimization Algo (SA)		Microgrid Model
 Metrics			Microgrid Model 			Objective Function, main
 PDFResults		Monte Carlo					main, VarList
+
+
 '''
 
 #*****Input and Output Files*******
@@ -32,6 +34,13 @@ column	Data
 7
 
 '''
+
+#*****Monte Carlo Simulation Function*******
+NumberofParallelProcesses = 3					#number of processes to be used in the multiprocessing module implemented in monte carlo simulation. 
+#this is related to the number of CPU cores
+
+
+
 
 #*****Microgrid Model*******
 
@@ -71,9 +80,9 @@ pSEI = 0.0296
 rSEI = 150.24
 
 # Inverter Component Specs and Parameters
-InvBufferSize = 1.50	#higher than the max Deman
+InvBufferSize = 1.00	#higher than the max Deman
 YearstoReplace = 5
-InvRatedPower = 28000		#basically the max output power. this is used in the inverter efficiency look up table
+InvRatedPower = 56000 #28000		#basically the max output power. this is used in the inverter efficiency look up table
 
 # Solar Photovoltaic Model and Paramaters, 
 PVatSTC = 1000			# unit

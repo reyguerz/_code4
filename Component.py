@@ -73,6 +73,7 @@ def SearchLUTBisectionMethod(LUTContent, LUT):
 		else:
 			index = round((maxindex + minindex)/2)
 			direction = 0
+		
 
 
 	SearchResult.append(index)
@@ -116,7 +117,7 @@ InvLUTPout = InverterEff.LUTPout
 
 def Inverter(Demand):
 	SearchResult = SearchLUTBisectionMethod(Demand, InvLUTPout)
-
+	#print('Inverter Search: ', SearchResult)
 	if SearchResult[1] != 0:
 		a = int(SearchResult[0])
 		b = int(SearchResult[0] + SearchResult[1])

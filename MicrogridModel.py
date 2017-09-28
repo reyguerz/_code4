@@ -36,9 +36,10 @@ Inverterunitcost =  VarList.Inverterunitcost	#USD/kWh
 # ****************FUNCTION DEFINITION: ACTUAL SIMULATION
 
 
-def Simulation(OneScenario,Sizes,metrics):
+def Simulation(OneScenario,Sizes):
 
 	#Meteorological and Load Data.
+
 	Irradiance = OneScenario[0]
 	WindSpeed = OneScenario[1]
 	Temp = OneScenario[2]
@@ -51,6 +52,8 @@ def Simulation(OneScenario,Sizes,metrics):
 	else:
 		print('ERROR in input data. duration mismatch')
 		rowError = 'ERROR in input data. duration mismatch'
+
+
 
 	# Design Sizes
 	PVSize = Sizes[0]	# check components for unit size
@@ -105,9 +108,9 @@ def Simulation(OneScenario,Sizes,metrics):
 
 
 	for i in range (TimeSteps): # for i in range (1,TimeSteps + 1): # i = 0 is initial value
-
-		print(i, 'of ',TimeSteps, ' TimeSteps/Hours')
-
+		
+		if (i % 50000 == 0):
+			print(i, 'of ',TimeSteps, ' TimeSteps/Hours')
 		#*** Initialization / Update for each time step, consider degradation
 
 		Component.TimeIndex = i
@@ -115,15 +118,15 @@ def Simulation(OneScenario,Sizes,metrics):
 		Component.PVIrradiance = Irradiance[i]
 		Component.PVSize = PVSize
 		PSolar = Component.SolarPVOut()
-
+		
 		Component.WTWindSpeed = WindSpeed[i]
 		Component.WindTBSize = WTSize
 		Pwind = Component.WindTBOut()
-
+		#print(i, ' Demand ', Demand[i])
 		PToInverter = Component.Inverter(Demand[i]) # computes for the required input to the inverter given the load to satisfy
-
+		#print(i, ' P2Inverter ', PToInverter)
 		PGen = PSolar + Pwind
-
+		
 		#*** Dispatch Strategy
 
 		if PGen >= PToInverter: # Generated power is greater than demand (plus inverter load effects)
@@ -163,7 +166,7 @@ def Simulation(OneScenario,Sizes,metrics):
 		# SOC moving average
 		PrevBatSOC = BatSOC
 		BatSOC = BatChargeStat / BatChargeRemainingCap
-		#print(BatSOC)
+		
 		BatSOCAve = (BatSOCAve * (BatTime + 1) + BatSOC) / ( BatTime + 2) # BatTime has "+ 1" because initial BatTime = 0
 
 		Temp4Bat = Temp[i+1]
@@ -255,7 +258,7 @@ def Simulation(OneScenario,Sizes,metrics):
 			PrevRFB = deque()
 			PrevRFB = copy.deepcopy(RainFlowBuffer)
 
-
+		
 		if BatChargeStat > BatChargeRemainingCap:
 			BatChargeStat = BatChargeRemainingCap	# actual charge lost because of degradation when battery is fully charged
 
@@ -301,8 +304,8 @@ def Simulation(OneScenario,Sizes,metrics):
 
 	# Inverter Costing
 	InvBufferSize = VarList.InvBufferSize	#higher than the max Deman
-	InvSize = math.ceil((InvBufferSize*max(Demand)) / Component.InvRatedPower)
-	InitInv = InvSize * Inverterunitcost
+	InvSize = math.ceil(InvBufferSize*Component.InvRatedPower/1000)
+	InitInv = InvSize * Inverterunitcost				# inverter cost is USD/kw
 	YearstoReplace = VarList.YearstoReplace
 	Replacements = math.ceil(TimeSteps / (24*365*YearstoReplace))
 	CostInv = InitInv * Replacements
@@ -317,10 +320,12 @@ def Simulation(OneScenario,Sizes,metrics):
 	if SimulationBreak == 0:
 		ECOE = (TotalCost / (TotalDemandServed/1000)) 	# in USD/kWh
 	
-	
+	metrics = []
 	metrics.append(ECOE)
 	metrics.append(TotalCost)
 	metrics.append(TotalDemandServed)
+
+	return metrics
 
 
 #************************ END:  FUNCTION DEFINITION/SIMULATION
